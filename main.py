@@ -178,9 +178,9 @@ async def startup_db_check():
     """Verify MongoDB connection on startup."""
     try:
         from app.database import client
-        # Ping the deployment to confirm connection
         client.admin.command("ping")
         print("[OK] Successfully connected to MongoDB Atlas!")
     except Exception as e:
-        print(f"[ERROR] Failed to connect to MongoDB Atlas: {e}")
-        raise RuntimeError(f"MongoDB connection failed: {e}")
+        # Log the error but do NOT raise — crashing here takes down all routes
+        print(f"[WARNING] MongoDB connection check failed: {e}")
+        print("[INFO] Server will continue — DB connection will be retried on first request.")

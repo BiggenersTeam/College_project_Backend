@@ -2,9 +2,37 @@ services:
   - type: web
     name: facetracer-backend
     env: python
+    region: singapore
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
     envVars:
       - key: MONGODB_URI
         sync: false
-        description: MongoDB connection string
+      - key: SECRET_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: VOICE_PROVIDER
+        value: auto
+      - key: VOICE_CALLS_ENABLED
+        value: "true"
+      - key: FACE_MATCH_THRESHOLD
+        value: "50.0"
+      - key: VAPI_API_KEY
+        sync: false
+      - key: VAPI_ASSISTANT_ID
+        sync: false
+      - key: VAPI_PRIVATE_API_KEY
+        sync: false
+      - key: VAPI_PHONE_NUMBER_ID
+        sync: false
