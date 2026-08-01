@@ -1,0 +1,18 @@
+# Environment & secrets
+.env
+
+# Old SQLite database (no longer used)
+facetracer.db
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Uploads (local only)
+uploads/
