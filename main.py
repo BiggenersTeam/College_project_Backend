@@ -133,6 +133,8 @@ origins = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "https://face-tracer-frontend.vercel.app",
+    "https://final-frontend.vercel.app",
+    "https://final-frontend-git-main-gayatrihippale-arch.vercel.app",
     "*"
 ]
 
