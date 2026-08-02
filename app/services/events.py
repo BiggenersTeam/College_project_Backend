@@ -234,7 +234,7 @@ def dispatch_case_resolved(
         return
 
     # ── Resolve phone number ──────────────────────────────────────────────
-    phone = _resolve_phone(case, db) if db else None
+    phone = _resolve_phone(case, db) if db is not None else None
 
     # Last-chance: try case contact_phone directly without DB
     if not phone:
@@ -255,7 +255,7 @@ def dispatch_case_resolved(
 
     # ── Determine language ────────────────────────────────────────────────
     registered_by = case.get("created_by")
-    language = _get_officer_language(db, registered_by) if db else "EN"
+    language = _get_officer_language(db, registered_by) if db is not None else "EN"
     logger.info(f"[Event] Language: {language}")
 
     # ── Build first message ───────────────────────────────────────────────
