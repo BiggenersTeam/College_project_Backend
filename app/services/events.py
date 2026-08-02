@@ -60,34 +60,39 @@ def _get_officer_language(db, registered_by: Optional[str]) -> str:
 # ── Phone resolver ────────────────────────────────────────────────────────────
 def _resolve_phone(case: dict, db) -> Optional[str]:
     """
-    Priority 1: contact_phone field on the case document.
-    Priority 2: registering officer's profile phone number.
+    Resolve contact phone in priority order:
+      1. case.contact_phone  — number entered when registering the case
+      2. officer profile phone — phone of the officer who registered the case
     Always returns E.164-formatted phone or None.
     """
     from .vapi_service import validate_e164
 
-    def _fmt(raw: str) -> Optional[str]:
-        raw = raw.strip()
-        if not raw or len(raw) < 7:
+    def _fmt(raw) -> Optional[str]:
+        if not raw:
+            return None
+        raw = str(raw).strip()
+        if len(raw) < 7:
             return None
         return validate_e164(raw)
 
-    # Priority 1: case contact_phone
-    phone = _fmt(case.get("contact_phone") or "")
+    # Priority 1: contact_phone on the case
+    phone = _fmt(case.get("contact_phone"))
     if phone:
         return phone
 
-    # Priority 2: officer's phone from users collection
-    registered_by = case.get("created_by")
-    if registered_by and db is not None:
-        try:
-            officer = db["users"].find_one({"_id": ObjectId(registered_by)})
-            if officer:
-                phone = _fmt(officer.get("phone") or "")
-                if phone:
-                    return phone
-        except Exception:
-            pass
+    # Priority 2: officer's phone number from users collection
+    if db is not None:
+        registered_by = case.get("created_by")
+        if registered_by:
+            try:
+                officer = db["users"].find_one({"_id": ObjectId(registered_by)})
+                if officer:
+                    phone = _fmt(officer.get("phone"))
+                    if phone:
+                        logger.info(f"[Event] Using officer phone as fallback: {phone}")
+                        return phone
+            except Exception as exc:
+                logger.warning(f"[Event] Could not look up officer phone: {exc}")
 
     return None
 
@@ -144,17 +149,18 @@ def _build_first_message(person_name: str, case_id: str, language: str) -> str:
 # ── Duplicate call prevention ─────────────────────────────────────────────────
 def _already_called(db, case_id: str) -> bool:
     """
-    Check both vapi_call_logs and legacy call_logs to prevent duplicate calls
-    for the same case resolution.
+    Prevent duplicate calls — but ONLY block if a call actually connected
+    (ringing, in-progress, ended, success). 
+    'queued' is NOT considered success — Vapi queues calls that may never connect.
     """
     if db is None:
         return False
     case_id_str = str(case_id)
 
-    # Check new Vapi call logs
+    # Only block if call actually went through — not just queued
     vapi_existing = db["vapi_call_logs"].find_one({
         "case_id":     case_id_str,
-        "call_status": {"$in": ["queued", "ringing", "in-progress", "ended", "success"]},
+        "call_status": {"$in": ["ringing", "in-progress", "ended", "success"]},
     })
     if vapi_existing:
         return True
@@ -163,7 +169,8 @@ def _already_called(db, case_id: str) -> bool:
     legacy_existing = db["call_logs"].find_one({
         "case_id":     case_id_str,
         "call_status": "success",
-    })
+    }) if "call_logs" in db.list_collection_names() else None
+
     return bool(legacy_existing)
 
 
@@ -227,16 +234,24 @@ def dispatch_case_resolved(
         return
 
     # ── Resolve phone number ──────────────────────────────────────────────
-    phone = _resolve_phone(case, db) if db else (case.get("contact_phone") or "").strip() or None
+    phone = _resolve_phone(case, db) if db else None
+
+    # Last-chance: try case contact_phone directly without DB
+    if not phone:
+        raw = (case.get("contact_phone") or "").strip()
+        if raw:
+            from .vapi_service import validate_e164
+            phone = validate_e164(raw)
 
     if not phone:
         logger.warning(
-            f"[Event] No contact phone for case {case_id} ({person_name}). "
-            f"AI call skipped. Add contact_phone when registering the case."
+            f"[Event] ⚠️  No contact phone for case {case_id} ({person_name}). "
+            f"AI call SKIPPED. "
+            f"Make sure contact_phone is filled when registering the case."
         )
         return
 
-    logger.info(f"[Event] Contact phone resolved: {phone}")
+    logger.info(f"[Event] ✅ Contact phone resolved: {phone}")
 
     # ── Determine language ────────────────────────────────────────────────
     registered_by = case.get("created_by")
