@@ -261,6 +261,30 @@ def start_call(
         vapi_response=data,
     )
 
+    # ── Schedule status sync after 30s ────────────────────────────────────
+    # Vapi transitions: queued → ringing → in-progress → ended
+    # Sync real status back to DB so dashboard shows correct info
+    if call_id:
+        import threading
+        def _sync_status(cid: str):
+            import time
+            time.sleep(30)
+            try:
+                r = _vapi_request("GET", f"/call/{cid}")
+                if r["success"]:
+                    real = r["data"].get("status", "unknown")
+                    reason = r["data"].get("endedReason", "")
+                    sdb = _get_db()
+                    _update_call_log(sdb, cid, {
+                        "call_status":  real,
+                        "ended_reason": reason,
+                        "end_time": datetime.datetime.utcnow() if real == "ended" else None,
+                    })
+                    logger.info(f"[VapiService] Synced {cid[:16]}: {status} → {real} ({reason})")
+            except Exception as e:
+                logger.warning(f"[VapiService] Sync failed {cid}: {e}")
+        threading.Thread(target=_sync_status, args=(call_id,), daemon=True).start()
+
     return {
         "success":      True,
         "call_id":      call_id,
@@ -268,8 +292,6 @@ def start_call(
         "phone_number": formatted,
         "error":        None,
     }
-
-
 def end_call(call_id: str, user_id: str) -> dict:
     """
     End an active Vapi call by call ID.
