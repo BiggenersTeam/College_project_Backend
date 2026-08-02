@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="FaceTracer API",
-    description="Backend API for Face Recognition Missing Person Finder System",
+    description="Backend API for Face Recognition Missing Person Finder System — v2.0",
     version="2.0.0"
 )
 
